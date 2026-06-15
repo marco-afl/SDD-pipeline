@@ -28,3 +28,7 @@ class IdempotencyConflictError(TransferError):
 
 class TransferNotFoundError(TransferError):
     pass
+
+
+class TransferAccessDeniedError(TransferError):
+    pass

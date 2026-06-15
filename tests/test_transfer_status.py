@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from src.api.schemas.transfer_schema import ErrorDetail, TransferStatusResponse
 from src.services.transfer_service import TransferService
-from src.errors.transfer_errors import TransferNotFoundError
+from src.errors.transfer_errors import TransferNotFoundError, TransferAccessDeniedError
 from src.models.transfer import Transfer
 
 
@@ -83,3 +83,21 @@ def test_get_status_raises_not_found_for_unknown_id(db_session):
     service = TransferService(db_session)
     with pytest.raises(TransferNotFoundError):
         service.get_status("TRF-DOES-NOT-EXIST", "CLIENT-1")
+
+
+# ---------------------------------------------------------------------------
+# T03 — Ownership verification tests
+# ---------------------------------------------------------------------------
+
+def test_get_status_raises_access_denied_for_wrong_client(db_session):
+    _seed_transfer(db_session, client_id="CLIENT-1")
+    service = TransferService(db_session)
+    with pytest.raises(TransferAccessDeniedError):
+        service.get_status("TRF-20260615-AABBCCDD", "CLIENT-2")
+
+
+def test_get_status_allows_owner_client(db_session):
+    _seed_transfer(db_session, client_id="CLIENT-1")
+    service = TransferService(db_session)
+    result = service.get_status("TRF-20260615-AABBCCDD", "CLIENT-1")
+    assert result.transfer_id == "TRF-20260615-AABBCCDD"

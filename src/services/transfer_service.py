@@ -14,6 +14,7 @@ from src.errors.transfer_errors import (
     DestinationAccountNotFoundError,
     IdempotencyConflictError,
     TransferNotFoundError,
+    TransferAccessDeniedError,
 )
 
 
@@ -101,6 +102,8 @@ class TransferService:
         transfer = self.transfer_repo.find_by_transfer_id(transfer_id)
         if transfer is None:
             raise TransferNotFoundError()
+        if transfer.initiated_by != client_id:
+            raise TransferAccessDeniedError()
         return TransferStatusResponse(
             transfer_id=transfer.transfer_id,
             status=transfer.status,
