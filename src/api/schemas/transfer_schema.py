@@ -4,6 +4,23 @@ from datetime import datetime
 from decimal import Decimal
 
 
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+
+
+class TransferStatusResponse(BaseModel):
+    transfer_id: str
+    status: str
+    amount: Decimal
+    origin_account: str
+    destination_account: str
+    processed_at: datetime
+    error: Optional[ErrorDetail] = None
+
+    model_config = {"from_attributes": True}
+
+
 class TransferRequest(BaseModel):
     idempotency_key: str
     origin_account: str

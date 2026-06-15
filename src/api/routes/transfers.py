@@ -4,13 +4,15 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from src.database import get_db
-from src.api.schemas.transfer_schema import TransferRequest, TransferResponse, ErrorResponse
+from src.api.schemas.transfer_schema import TransferRequest, TransferResponse, TransferStatusResponse, ErrorResponse
 from src.services.transfer_service import TransferService
 from src.errors.transfer_errors import (
     InsufficientFundsError,
     OriginAccountNotFoundError,
     DestinationAccountNotFoundError,
     IdempotencyConflictError,
+    TransferNotFoundError,
+    TransferAccessDeniedError,
 )
 
 router = APIRouter()
@@ -32,7 +34,37 @@ _ERROR_MAP = {
         409, "IDEMPOTENCY_CONFLICT",
         "La clave de idempotencia ya fue usada con parámetros distintos.",
     ),
+    TransferNotFoundError: (
+        404, "TRANSFER_NOT_FOUND",
+        "La transferencia no fue encontrada.",
+    ),
+    TransferAccessDeniedError: (
+        403, "ACCESS_DENIED",
+        "No tienes permiso para consultar esta transferencia.",
+    ),
 }
+
+
+@router.get("/v1/transfers/{transfer_id}", status_code=200, response_model=TransferStatusResponse)
+def get_transfer_status(
+    transfer_id: str,
+    db: Session = Depends(get_db),
+    x_client_id: str = Header(...),
+):
+    service = TransferService(db)
+    try:
+        return service.get_status(transfer_id, client_id=x_client_id)
+    except (TransferNotFoundError, TransferAccessDeniedError) as exc:
+        status_code, error_code, message = _ERROR_MAP[type(exc)]
+        return JSONResponse(
+            status_code=status_code,
+            content=ErrorResponse(
+                error_code=error_code,
+                message=message,
+                transfer_id=None,
+                timestamp=datetime.now(timezone.utc),
+            ).model_dump(mode="json"),
+        )
 
 
 @router.post("/v1/transfers", status_code=201, response_model=TransferResponse)

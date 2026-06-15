@@ -24,3 +24,11 @@ class SameAccountTransferError(TransferError):
 
 class IdempotencyConflictError(TransferError):
     pass
+
+
+class TransferNotFoundError(TransferError):
+    pass
+
+
+class TransferAccessDeniedError(TransferError):
+    pass
