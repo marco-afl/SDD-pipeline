@@ -3,7 +3,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from src.api.schemas.transfer_schema import TransferRequest, TransferResponse
+from src.api.schemas.transfer_schema import TransferRequest, TransferResponse, TransferStatusResponse
 from src.repositories.account_repository import AccountRepository
 from src.repositories.transfer_repository import TransferRepository
 from src.services.audit_service import AuditService
@@ -13,6 +13,7 @@ from src.errors.transfer_errors import (
     OriginAccountNotFoundError,
     DestinationAccountNotFoundError,
     IdempotencyConflictError,
+    TransferNotFoundError,
 )
 
 
@@ -94,4 +95,18 @@ class TransferService:
             amount=req.amount,
             currency=req.currency,
             timestamp=now,
+        )
+
+    def get_status(self, transfer_id: str, client_id: str) -> TransferStatusResponse:
+        transfer = self.transfer_repo.find_by_transfer_id(transfer_id)
+        if transfer is None:
+            raise TransferNotFoundError()
+        return TransferStatusResponse(
+            transfer_id=transfer.transfer_id,
+            status=transfer.status,
+            amount=Decimal(str(transfer.amount)),
+            origin_account=transfer.origin_account,
+            destination_account=transfer.destination_account,
+            processed_at=transfer.created_at,
+            error=None,
         )
