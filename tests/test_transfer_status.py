@@ -101,3 +101,64 @@ def test_get_status_allows_owner_client(db_session):
     service = TransferService(db_session)
     result = service.get_status("TRF-20260615-AABBCCDD", "CLIENT-1")
     assert result.transfer_id == "TRF-20260615-AABBCCDD"
+
+
+# ---------------------------------------------------------------------------
+# T04 — Integration tests via TestClient
+# ---------------------------------------------------------------------------
+
+GET_URL = "/v1/transfers/{transfer_id}"
+HEADERS = {"x-client-id": "CLIENT-1"}
+CREATE_URL = "/v1/transfers"
+
+
+def _create_transfer(client, transfer_id_hint="AABBCCDD"):
+    import uuid
+    payload = {
+        "idempotency_key": str(uuid.uuid4()),
+        "origin_account": "ACC-001",
+        "destination_account": "ACC-002",
+        "amount": "150.00",
+        "currency": "USD",
+    }
+    resp = client.post(CREATE_URL, json=payload, headers=HEADERS)
+    assert resp.status_code == 201
+    return resp.json()["transfer_id"]
+
+
+def test_get_transfer_status_happy_path(client):
+    transfer_id = _create_transfer(client)
+    resp = client.get(GET_URL.format(transfer_id=transfer_id), headers=HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["transfer_id"] == transfer_id
+    assert data["status"] == "completed"
+    assert float(data["amount"]) == 150.0
+    assert data["origin_account"] == "ACC-001"
+    assert data["destination_account"] == "ACC-002"
+    assert "processed_at" in data
+    assert data["error"] is None
+
+
+def test_get_transfer_status_not_found_returns_404(client):
+    resp = client.get(GET_URL.format(transfer_id="TRF-DOES-NOT-EXIST"), headers=HEADERS)
+    assert resp.status_code == 404
+    assert resp.json()["error_code"] == "TRANSFER_NOT_FOUND"
+
+
+def test_get_transfer_status_wrong_client_returns_403(client):
+    transfer_id = _create_transfer(client)
+    resp = client.get(
+        GET_URL.format(transfer_id=transfer_id),
+        headers={"x-client-id": "CLIENT-2"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["error_code"] == "ACCESS_DENIED"
+
+
+def test_get_transfer_status_all_fields_present(client):
+    transfer_id = _create_transfer(client)
+    resp = client.get(GET_URL.format(transfer_id=transfer_id), headers=HEADERS)
+    data = resp.json()
+    for field in ("transfer_id", "status", "amount", "origin_account", "destination_account", "processed_at"):
+        assert field in data, f"Campo faltante: {field}"
